@@ -1,0 +1,24 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["python:3.10"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Prepare Python
+        run: |
+          python -m pip install --upgrade pip wheel
+          pip install absl-py pytest dm_control>=1.0.12
+      - name: Run tests
+        run: |
+          pytest .
