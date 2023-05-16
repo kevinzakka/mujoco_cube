@@ -25,32 +25,33 @@ def build() -> mjcf.RootElement:
     # Constants.
     # ================================ #
     cube_mass = 0.0685  # Total mass of the cube in kg.
-    cubelet_dimension = 0.01905  # Dimension of a cubelet in m.
+    cubelet_dimension = 0.019  # Dimension of a cubelet in m.
+    # Vertices obtained via `process_mesh.py`.
     cubelet_vertices = """
-        0.0085 -0.01 0.0085
-        -0.0085 -0.01 -0.0085
-        0.0085 -0.01 -0.0085
-        0.01 0.0085 0.0085
-        0.01 -0.0085 -0.0085
-        0.01 0.0085 -0.0085
-        -0.0085 0.0085 0.01
-        0.0085 -0.0085 0.01
-        0.0085 0.0085 0.01
-        -0.01 -0.0085 0.0085
-        -0.01 0.0085 -0.0085
-        -0.01 -0.0085 -0.0085
-        -0.0085 0.01 0.0085
-        0.0085 0.01 -0.0085
-        -0.0085 0.01 -0.0085
-        -0.0085 -0.0085 -0.01
-        -0.0085 -0.01 0.0085
-        -0.0085 -0.0085 0.01
-        -0.0085 0.0085 -0.01
-        -0.01 0.0085 0.0085
-        0.0085 -0.0085 -0.01
-        0.01 -0.0085 0.0085
-        0.0085 0.0085 -0.01
-        0.0085 0.01 0.0085
+        0.008075 0.0095 -0.008075
+        -0.008075 0.0095 -0.008075
+        0.008075 0.0095 0.008075
+        -0.008075 0.0095 0.008075
+        -0.0095 0.008075 -0.008075
+        -0.0095 -0.008075 -0.008075
+        -0.0095 0.008075 0.008075
+        -0.0095 -0.008075 0.008075
+        0.008075 -0.0095 -0.008075
+        0.008075 -0.0095 0.008075
+        -0.008075 -0.0095 -0.008075
+        -0.008075 -0.0095 0.008075
+        0.0095 0.008075 0.008075
+        0.0095 -0.008075 0.008075
+        0.0095 0.008075 -0.008075
+        0.0095 -0.008075 -0.008075
+        0.008075 0.008075 0.0095
+        -0.008075 0.008075 0.0095
+        0.008075 -0.008075 0.0095
+        -0.008075 -0.008075 0.0095
+        0.008075 -0.008075 -0.0095
+        -0.008075 -0.008075 -0.0095
+        0.008075 0.008075 -0.0095
+        -0.008075 0.008075 -0.0095
     """
     axes = ("pX", "nX", "pY", "nY", "pZ", "nZ")  # +/- axis directions.
     # ================================ #
@@ -85,6 +86,7 @@ def build() -> mjcf.RootElement:
     getattr(root.visual, "global").azimuth = 180
     getattr(root.visual, "global").elevation = -20
     root.statistic.extent = 0.1
+    root.statistic.meansize = 0.0087
     # ================================ #
 
     # ================================ #
@@ -94,12 +96,11 @@ def build() -> mjcf.RootElement:
     cubelet_default = root.default.add("default", dclass="cubelet")
     cubelet_default.geom.type = "mesh"
     cubelet_default.geom.mesh = "cubelet"
-    cubelet_default.geom.margin = -0.001
     cubelet_default.geom.condim = 1
     cubelet_default.joint.type = "ball"
     cubelet_default.joint.armature = 1e-4
     cubelet_default.joint.damping = 5e-4
-    cubelet_default.joint.frictionloss = 5e-4
+    cubelet_default.joint.frictionloss = 1e-3
     if ADD_ACTUATORS:
         root.default.motor.ctrlrange = (-0.05, 0.05)
     core_default = root.default.add("default", dclass="core")
@@ -120,7 +121,7 @@ def build() -> mjcf.RootElement:
         type="skybox",
         builtin="gradient",
         rgb1=(0.2,) * 3,
-        rgb2=(0.0,) * 3,
+        rgb2=(0.2,) * 3,
         height=512,
         width=512,
     )
@@ -225,8 +226,7 @@ def build() -> mjcf.RootElement:
         body.add("joint", name=d, type="hinge", axis=dir2axis(d))
         if ADD_ACTUATORS:
             root.actuator.add("motor", name=dir2color[d], joint=d)
-        mesh_body = body.add("body", name=f"mesh_{d}", pos=dir2pos(d))
-        mesh_body.add("geom", name=f"cubelet_{d}", material=dir2color[d])
+        body.add("geom", name=f"cubelet_{d}", material=dir2color[d], pos=dir2pos(d))
 
     # Edge cubelets: 6C2 - 3 = 12.
     for d1, d2 in list(itertools.combinations(axes, 2)):
@@ -235,9 +235,8 @@ def build() -> mjcf.RootElement:
         d = "_".join(sorted([d1, d2]))
         body = core.add("body", name=d)
         body.add("joint", name=d)
-        mesh_body = body.add("body", name=f"mesh_{d}", pos=dir2pos(d))
         mat = "_".join(sorted([dir2color[d1], dir2color[d2]]))
-        mesh_body.add("geom", name=f"cubelet_{d}", material=mat)
+        body.add("geom", name=f"cubelet_{d}", material=mat, pos=dir2pos(d))
 
     # Corner cubelets: 4*2=8.
     for d1, d2, d3 in list(itertools.combinations(axes, 3)):
@@ -246,9 +245,8 @@ def build() -> mjcf.RootElement:
         d = "_".join(sorted([d1, d2, d3]))
         body = core.add("body", name=d)
         body.add("joint", name=d)
-        mesh_body = body.add("body", name=f"mesh_{d}", pos=dir2pos(d))
         mat = "_".join(sorted([dir2color[d1], dir2color[d2], dir2color[d3]]))
-        mesh_body.add("geom", name=f"cubelet_{d}", material=mat)
+        body.add("geom", name=f"cubelet_{d}", material=mat, pos=dir2pos(d))
     # ================================ #
 
     return root

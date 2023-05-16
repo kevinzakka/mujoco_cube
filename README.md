@@ -30,5 +30,9 @@ python build_textures.py  # Creates the assets/ dir.
 python build_mjcf.py  # Creates cube_3x3x3.xml.
 ```
 
+## Cubelet design
+
+Solidworks was used to design `cubelet.stl`. It has a dimension of 1.9 cm with chamfered edges of length 1.425 mm. The cube was exported as an STL file and processed with `process_mesh.py` to obtain the vertices for the `mesh` attribute in the MJCF file.
+
 [MuJoCo]: https://github.com/deepmind/mujoco
 [Rubik's Cube]: https://en.wikipedia.org/wiki/Rubik%27s_Cube
