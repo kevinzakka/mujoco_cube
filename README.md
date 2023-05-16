@@ -1,15 +1,21 @@
 # MuJoCo 3x3x3 Puzzle Cube
 
 [![build][tests-badge]][tests]
+[![build][mujoco-version]][MuJoCo]
 
 [tests-badge]: https://github.com/kevinzakka/mujoco_cube/actions/workflows/ci.yml/badge.svg
 [tests]: https://github.com/kevinzakka/mujoco_cube/actions/workflows/ci.yml
+[mujoco-version]: https://img.shields.io/badge/MuJoCo-v2.3.3-blue
 
 [MuJoCo] model of a 3x3x3 puzzle cube, along with a script to procedurally generate it. Inspired by the [Rubik's Cube].
 
 <p float="left">
   <img src="cube3x3x3.gif" width="400">
 </p>
+
+## Requirements
+
+You will need MuJoCo version 2.3.3 or greater to run the model. If you want to use an older version, replace the `implicitfast` integrator with `Euler`.
 
 ## Play with the model
 
