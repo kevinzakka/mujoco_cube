@@ -115,16 +115,7 @@ def build() -> mjcf.RootElement:
     # Assets.
     # ================================ #
     root.asset.add("mesh", name="cubelet", vertex=cubelet_vertices)
-
-    root.asset.add(
-        "texture",
-        type="skybox",
-        builtin="gradient",
-        rgb1=(0.2,) * 3,
-        rgb2=(0.2,) * 3,
-        height=512,
-        width=512,
-    )
+    root.asset.add("texture", type="skybox", builtin="gradient", height=512, width=512)
 
     color2dir = {
         "white": "pZ",

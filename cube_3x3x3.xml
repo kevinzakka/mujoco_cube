@@ -19,7 +19,7 @@
     </default>
   </default>
   <asset>
-    <texture type="skybox" builtin="gradient" rgb1="0.2 0.2 0.2" rgb2="0.2 0.2 0.2" width="512" height="512"/>
+    <texture type="skybox" builtin="gradient" width="512" height="512"/>
     <texture file="white.png" gridsize="3 4" gridlayout=".....F......" rgb1="0 0 0"/>
     <texture file="yellow.png" gridsize="3 4" gridlayout=".....B......" rgb1="0 0 0"/>
     <texture file="red.png" gridsize="3 4" gridlayout=".....D......" rgb1="0 0 0"/>
