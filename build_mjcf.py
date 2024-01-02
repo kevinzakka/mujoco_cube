@@ -96,6 +96,7 @@ def build() -> mjcf.RootElement:
     cubelet_default = root.default.add("default", dclass="cubelet")
     cubelet_default.geom.type = "mesh"
     cubelet_default.geom.mesh = "cubelet"
+    cubelet_default.geom.quat = (1, 0, 0, 1)
     cubelet_default.geom.condim = 1
     cubelet_default.joint.type = "ball"
     cubelet_default.joint.armature = 1e-4
