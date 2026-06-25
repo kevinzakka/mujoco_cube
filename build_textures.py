@@ -1,72 +1,58 @@
-"""Generate cubelet textures for a 3x3 cube."""
+"""Generate a single UV sticker-atlas texture for the 3x3 cube.
 
-from PIL import Image, ImageDraw
-import itertools
+Instead of baking one cube-map texture per cubelet (the old approach), we emit a
+single horizontal atlas with one square swatch per sticker color, plus a black
+swatch for the chamfered bevels and any face without a sticker. The cubelet
+meshes carry UV coordinates that map each face into the right swatch, so the
+whole model needs only one texture and one material. See ``build_mjcf.py``.
+"""
+
 import pathlib
 
-colors = {
+from PIL import Image, ImageDraw
+
+# Sticker colors. "black" is the first swatch and is used for the chamfer bevels
+# and for any cubelet face that does not carry a sticker.
+COLORS = {
+    "black": (0, 0, 0),
     "white": (255, 255, 255),
-    "red": (137, 18, 20),
-    "blue": (13, 72, 172),
-    "orange": (255, 85, 37),
-    "green": (25, 155, 76),
     "yellow": (254, 213, 47),
+    "red": (137, 18, 20),
+    "orange": (255, 85, 37),
+    "blue": (13, 72, 172),
+    "green": (25, 155, 76),
 }
 
-res = 256  # Texture resolution.
-imsize = (res * 4, res * 3)
-rad = int(0.2 * res)  # Rounded rectangle radius.
-width = int(0.08 * res)  # Fill width.
-kwargs = dict(radius=rad, width=width, outline=(0, 0, 0))
+# Atlas order; index i occupies u in [i / N, (i + 1) / N].
+SWATCH_ORDER = list(COLORS.keys())
 
-pathlib.Path("assets").mkdir(parents=True, exist_ok=True)
+RES = 256  # Per-swatch resolution.
+RAD = int(0.2 * RES)  # Rounded-rectangle corner radius.
+WIDTH = int(0.08 * RES)  # Outline width.
 
-# Center cubelets: 1 color.
-for color in colors:
-    img = Image.new("RGB", imsize, color=(0, 0, 0))
+
+def build_atlas() -> Image.Image:
+    n = len(SWATCH_ORDER)
+    img = Image.new("RGB", (RES * n, RES), color=(0, 0, 0))
     draw = ImageDraw.Draw(img)
-    draw.rounded_rectangle((res, res, 2 * res, 2 * res), fill=colors[color], **kwargs)
-    img.save(f"assets/{color}.png")
+    for i, name in enumerate(SWATCH_ORDER):
+        if name == "black":
+            continue  # Leave it black.
+        x0 = i * RES
+        draw.rounded_rectangle(
+            (x0, 0, x0 + RES, RES),
+            radius=RAD,
+            width=WIDTH,
+            outline=(0, 0, 0),
+            fill=COLORS[name],
+        )
+    return img
 
-# Edge cubelets: 2 colors.
-for color1, color2 in itertools.combinations(colors, 2):
-    color1, color2 = sorted([color1, color2])
 
-    # Skip impossible combinations.
-    if color1 == "white" and color2 == "yellow":
-        continue
-    if color1 == "red" and color2 == "orange":
-        continue
-    if color1 == "blue" and color2 == "green":
-        continue
+def main() -> None:
+    pathlib.Path("assets").mkdir(parents=True, exist_ok=True)
+    build_atlas().save("assets/sticker.png")
 
-    img = Image.new("RGB", imsize, color=(0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    draw.rounded_rectangle((res, res, 2 * res, 2 * res), fill=colors[color1], **kwargs)
-    draw.rounded_rectangle(
-        (2 * res, res, 3 * res, 2 * res), fill=colors[color2], **kwargs
-    )
-    img.save(f"assets/{color1}_{color2}.png")
 
-# Corner cubelets: 3 colors.
-for comb in itertools.combinations(colors, 3):
-    # Skip impossible combinations.
-    if "white" in comb and "yellow" in comb:
-        continue
-    if "red" in comb and "orange" in comb:
-        continue
-    if "blue" in comb and "green" in comb:
-        continue
-
-    color1, color2, color3 = sorted(comb)
-
-    img = Image.new("RGB", imsize, color=(0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    draw.rounded_rectangle((res, res, 2 * res, 2 * res), fill=colors[color1], **kwargs)
-    draw.rounded_rectangle(
-        (2 * res, res, 3 * res, 2 * res), fill=colors[color2], **kwargs
-    )
-    draw.rounded_rectangle(
-        (3 * res, res, 4 * res, 2 * res), fill=colors[color3], **kwargs
-    )
-    img.save(f"assets/{color1}_{color2}_{color3}.png")
+if __name__ == "__main__":
+    main()

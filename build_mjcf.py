@@ -1,12 +1,14 @@
 """Build a 3x3 cube MJCF."""
 
 import itertools
-from typing import Sequence
+from typing import Mapping, Sequence
 from dm_control import mjcf
 from mujoco import viewer
 from pathlib import Path
 from lxml import etree
 import re
+
+from cubelet_mesh import build_cubelet_mesh
 
 
 SAVE_DIR = Path(__file__).parent
@@ -26,33 +28,6 @@ def build() -> mjcf.RootElement:
     # ================================ #
     cube_mass = 0.0685  # Total mass of the cube in kg.
     cubelet_dimension = 0.019  # Dimension of a cubelet in m.
-    # Vertices obtained via `process_mesh.py`.
-    cubelet_vertices = """
-        0.008075 0.0095 -0.008075
-        -0.008075 0.0095 -0.008075
-        0.008075 0.0095 0.008075
-        -0.008075 0.0095 0.008075
-        -0.0095 0.008075 -0.008075
-        -0.0095 -0.008075 -0.008075
-        -0.0095 0.008075 0.008075
-        -0.0095 -0.008075 0.008075
-        0.008075 -0.0095 -0.008075
-        0.008075 -0.0095 0.008075
-        -0.008075 -0.0095 -0.008075
-        -0.008075 -0.0095 0.008075
-        0.0095 0.008075 0.008075
-        0.0095 -0.008075 0.008075
-        0.0095 0.008075 -0.008075
-        0.0095 -0.008075 -0.008075
-        0.008075 0.008075 0.0095
-        -0.008075 0.008075 0.0095
-        0.008075 -0.008075 0.0095
-        -0.008075 -0.008075 0.0095
-        0.008075 -0.008075 -0.0095
-        -0.008075 -0.008075 -0.0095
-        0.008075 0.008075 -0.0095
-        -0.008075 0.008075 -0.0095
-    """
     axes = ("pX", "nX", "pY", "nY", "pZ", "nZ")  # +/- axis directions.
     # ================================ #
 
@@ -95,8 +70,7 @@ def build() -> mjcf.RootElement:
     root.default.geom.mass = cube_mass / 27
     cubelet_default = root.default.add("default", dclass="cubelet")
     cubelet_default.geom.type = "mesh"
-    cubelet_default.geom.mesh = "cubelet"
-    cubelet_default.geom.quat = (1, 0, 0, 1)
+    cubelet_default.geom.material = "sticker"
     cubelet_default.geom.condim = 1
     cubelet_default.joint.type = "ball"
     cubelet_default.joint.armature = 1e-4
@@ -115,8 +89,9 @@ def build() -> mjcf.RootElement:
     # ================================ #
     # Assets.
     # ================================ #
-    root.asset.add("mesh", name="cubelet", vertex=cubelet_vertices)
     root.asset.add("texture", type="skybox", builtin="gradient", height=512, width=512)
+    root.asset.add("texture", name="sticker", type="2d", file="sticker.png")
+    root.asset.add("material", name="sticker", texture="sticker")
 
     color2dir = {
         "white": "pZ",
@@ -127,64 +102,14 @@ def build() -> mjcf.RootElement:
         "green": "nY",
     }
     dir2color = {v: k for k, v in color2dir.items()}
-    dir2face = {
-        "pX": "D",
-        "nX": "U",
-        "pY": "R",
-        "nY": "L",
-        "pZ": "F",
-        "nZ": "B",
-    }
 
-    for color in color2dir:
+    def add_cubelet_mesh(name: str, colors: Mapping[str, str]) -> str:
+        """Add a per-cubelet mesh whose sticker faces use ``colors`` (dir -> color)."""
+        vertex, texcoord, face = build_cubelet_mesh(colors)
         root.asset.add(
-            "texture",
-            file=f"{color}.png",
-            gridsize="3 4",
-            gridlayout=f".....{dir2face[color2dir[color]]}......",
-            rgb1=(0, 0, 0),
+            "mesh", name=name, vertex=vertex, texcoord=texcoord, face=face
         )
-        root.asset.add("material", name=color, texture=color)
-
-    for color1, color2 in itertools.combinations(color2dir.keys(), 2):
-        color1, color2 = sorted([color1, color2])
-        if color1 == "white" and color2 == "yellow":
-            continue
-        if color1 == "red" and color2 == "orange":
-            continue
-        if color1 == "blue" and color2 == "green":
-            continue
-        root.asset.add(
-            "texture",
-            file=f"{color1}_{color2}.png",
-            gridsize="3 4",
-            gridlayout=f".....{dir2face[color2dir[color1]]}{dir2face[color2dir[color2]]}.....",
-            rgb1=(0, 0, 0),
-        )
-        root.asset.add(
-            "material", name=f"{color1}_{color2}", texture=f"{color1}_{color2}"
-        )
-
-    for comb in itertools.combinations(color2dir.keys(), 3):
-        if "white" in comb and "yellow" in comb:
-            continue
-        if "red" in comb and "orange" in comb:
-            continue
-        if "blue" in comb and "green" in comb:
-            continue
-        color1, color2, color3 = sorted(comb)
-        root.asset.add(
-            "texture",
-            file=f"{color1}_{color2}_{color3}.png",
-            gridsize="3 4",
-            gridlayout=f".....{dir2face[color2dir[color1]]}{dir2face[color2dir[color2]]}{dir2face[color2dir[color3]]}....",
-            rgb1=(0, 0, 0),
-        )
-        root.asset.add(
-            "material",
-            name=f"{color1}_{color2}_{color3}",
-            texture=f"{color1}_{color2}_{color3}",
-        )
+        return name
     # ================================ #
 
     def dir2axis(d: str) -> Sequence[float]:
@@ -218,7 +143,8 @@ def build() -> mjcf.RootElement:
         body.add("joint", name=d, type="hinge", axis=dir2axis(d))
         if ADD_ACTUATORS:
             root.actuator.add("motor", name=dir2color[d], joint=d)
-        body.add("geom", name=f"cubelet_{d}", material=dir2color[d], pos=dir2pos(d))
+        mesh = add_cubelet_mesh(f"cubelet_{d}", {d: dir2color[d]})
+        body.add("geom", mesh=mesh, pos=dir2pos(d))
 
     # Edge cubelets: 6C2 - 3 = 12.
     for d1, d2 in list(itertools.combinations(axes, 2)):
@@ -227,8 +153,9 @@ def build() -> mjcf.RootElement:
         d = "_".join(sorted([d1, d2]))
         body = core.add("body", name=d)
         body.add("joint", name=d)
-        mat = "_".join(sorted([dir2color[d1], dir2color[d2]]))
-        body.add("geom", name=f"cubelet_{d}", material=mat, pos=dir2pos(d))
+        colors = {d1: dir2color[d1], d2: dir2color[d2]}
+        mesh = add_cubelet_mesh(f"cubelet_{d}", colors)
+        body.add("geom", mesh=mesh, pos=dir2pos(d))
 
     # Corner cubelets: 4*2=8.
     for d1, d2, d3 in list(itertools.combinations(axes, 3)):
@@ -237,8 +164,9 @@ def build() -> mjcf.RootElement:
         d = "_".join(sorted([d1, d2, d3]))
         body = core.add("body", name=d)
         body.add("joint", name=d)
-        mat = "_".join(sorted([dir2color[d1], dir2color[d2], dir2color[d3]]))
-        body.add("geom", name=f"cubelet_{d}", material=mat, pos=dir2pos(d))
+        colors = {d1: dir2color[d1], d2: dir2color[d2], d3: dir2color[d3]}
+        mesh = add_cubelet_mesh(f"cubelet_{d}", colors)
+        body.add("geom", mesh=mesh, pos=dir2pos(d))
     # ================================ #
 
     return root

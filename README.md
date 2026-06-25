@@ -15,7 +15,7 @@
 
 ## Requirements
 
-You will need MuJoCo version 2.3.3 or greater to run the model. If you want to use an older version, replace the `implicitfast` integrator with `Euler`.
+You will need MuJoCo version 3.1.0 or greater to run the model. If you want to use an older version, replace the `implicitfast` integrator with `Euler`.
 
 ## Play with the model
 
@@ -23,18 +23,17 @@ Just drag and drop the `cube_3x3x3.xml` file into the simulate window.
 
 ## Generate the model
 
-First install the dependencies:
+Dependencies are managed with [uv](https://docs.astral.sh/uv/). Run the following to
+generate the texture atlas and XML file:
 
 ```bash
-pip install -r requirements.txt
+uv run build_textures.py  # Creates assets/sticker.png.
+uv run build_mjcf.py      # Creates cube_3x3x3.xml.
 ```
 
-Then run the following to generate the assets and XML file:
-
-```bash
-python build_textures.py  # Creates the assets/ dir.
-python build_mjcf.py  # Creates cube_3x3x3.xml.
-```
+The whole model uses a single UV-mapped sticker atlas (`assets/sticker.png`) and a
+single material. Each cubelet is a mesh carrying texture coordinates that map its
+faces into the right color swatch; the chamfered bevels map into the black swatch.
 
 ## Cubelet design
 
