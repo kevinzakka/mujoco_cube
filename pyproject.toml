@@ -7,10 +7,10 @@ requires-python = ">=3.10,<3.13"
 license = { file = "LICENSE" }
 dependencies = [
     "mujoco>=3.1.0",
-    "dm_control>=1.0.15",
     "pillow",
     "numpy",
     "trimesh",
+    "scipy",
 ]
 
 [dependency-groups]

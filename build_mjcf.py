@@ -1,235 +1,119 @@
-"""Build a 3x3 cube MJCF."""
+"""Build a 3x3 cube MJCF using the MuJoCo spec (MjSpec) API."""
 
 import itertools
-from typing import Mapping, Sequence
-from dm_control import mjcf
-from mujoco import viewer
 from pathlib import Path
-from lxml import etree
-import re
+from typing import Iterator, Mapping, Sequence
+
+import mujoco
+from mujoco import viewer
 
 from cubelet_mesh import build_cubelet_mesh
-
 
 SAVE_DIR = Path(__file__).parent
 NAME = "Cube 3x3x3"
 XML_NAME = "cube_3x3x3.xml"
-PRECISION = 6
-ZERO_THRESHOLD = 1e-6
-ADD_ACTUATORS = True
+
+CUBE_MASS = 0.0685  # Total mass of the cube in kg.
+CUBELET_DIMENSION = 0.019  # Distance between adjacent cubelet centers in m.
+
+# Sticker color on each cubelet face, keyed by axis direction.
+DIR2COLOR = {
+    "pX": "red", "nX": "orange",
+    "pY": "blue", "nY": "green",
+    "pZ": "white", "nZ": "yellow",
+}
 
 
-def build() -> mjcf.RootElement:
-    root = mjcf.RootElement()
-    root.model = NAME
+def dir2axis(d: str) -> Sequence[float]:
+    s = -1 if d[0] == "n" else 1
+    return tuple(s if d[1] == ax else 0 for ax in "XYZ")
 
-    # ================================ #
-    # Constants.
-    # ================================ #
-    cube_mass = 0.0685  # Total mass of the cube in kg.
-    cubelet_dimension = 0.019  # Dimension of a cubelet in m.
-    axes = ("pX", "nX", "pY", "nY", "pZ", "nZ")  # +/- axis directions.
-    # ================================ #
 
-    # ================================ #
-    # Compiler settings.
-    # ================================ #
-    root.compiler.autolimits = True
-    root.compiler.angle = "radian"
-    root.compiler.texturedir = "assets"
-    # ================================ #
+def dir2pos(dirs: Sequence[str]) -> Sequence[float]:
+    return tuple(sum(CUBELET_DIMENSION * dir2axis(d)[i] for d in dirs) for i in range(3))
 
-    # ================================ #
-    # Memory settings.
-    # ================================ #
-    root.size.memory = "600K"
-    # ================================ #
 
-    # ================================ #
-    # Option settings.
-    # ================================ #
-    root.option.timestep = 0.01
-    root.option.integrator = "implicitfast"
-    # ================================ #
+def cubelets() -> Iterator[tuple[str, ...]]:
+    """Yield every cubelet as a tuple of face directions: 6 centers, 12 edges, 8 corners."""
+    for n in (1, 2, 3):
+        for axes in itertools.combinations("XYZ", n):
+            for signs in itertools.product("pn", repeat=n):
+                yield tuple(sorted(s + ax for s, ax in zip(signs, axes)))
 
-    # ================================ #
-    # Rendering settings.
-    # ================================ #
-    root.visual.headlight.diffuse = (0.6, 0.6, 0.6)
-    root.visual.headlight.ambient = (0.3, 0.3, 0.3)
-    root.visual.headlight.specular = (0, 0, 0)
-    getattr(root.visual, "global").azimuth = 180
-    getattr(root.visual, "global").elevation = -20
-    root.statistic.extent = 0.1
-    root.statistic.meansize = 0.0087
-    # ================================ #
 
-    # ================================ #
+def build() -> mujoco.MjSpec:
+    spec = mujoco.MjSpec()
+    spec.modelname = NAME
+    spec.memory = 600 * 1024
+
+    spec.compiler.degree = False  # Radians.
+    spec.compiler.texturedir = "assets"
+    spec.option.timestep = 0.01
+    spec.option.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+
+    spec.visual.headlight.diffuse = [0.6, 0.6, 0.6]
+    spec.visual.headlight.ambient = [0.3, 0.3, 0.3]
+    spec.visual.headlight.specular = [0, 0, 0]
+    spec.visual.global_.azimuth = 180
+    spec.visual.global_.elevation = -20
+    spec.stat.extent = 0.1
+    spec.stat.meansize = 0.0087
+
     # Defaults.
-    # ================================ #
-    root.default.geom.mass = cube_mass / 27
-    cubelet_default = root.default.add("default", dclass="cubelet")
-    cubelet_default.geom.type = "mesh"
-    cubelet_default.geom.material = "sticker"
-    cubelet_default.geom.condim = 1
-    cubelet_default.joint.type = "ball"
-    cubelet_default.joint.armature = 1e-4
-    cubelet_default.joint.damping = 5e-4
-    cubelet_default.joint.frictionloss = 1e-3
-    if ADD_ACTUATORS:
-        root.default.motor.ctrlrange = (-0.05, 0.05)
-    core_default = root.default.add("default", dclass="core")
-    core_default.geom.type = "sphere"
-    core_default.geom.size = (0.01,)
-    core_default.geom.contype = 0
-    core_default.geom.conaffinity = 0
-    core_default.geom.group = "4"
-    # ================================ #
+    spec.default.geom.mass = CUBE_MASS / 27
+    spec.default.actuator.ctrlrange = [-0.05, 0.05]
+    cubelet = spec.add_default("cubelet", spec.default)
+    cubelet.geom.type = mujoco.mjtGeom.mjGEOM_MESH
+    cubelet.geom.material = "sticker"
+    cubelet.geom.condim = 1
+    cubelet.joint.type = mujoco.mjtJoint.mjJNT_BALL
+    cubelet.joint.armature = 1e-4
+    cubelet.joint.damping = [5e-4] * 3
+    cubelet.joint.frictionloss = 1e-3
+    core = spec.add_default("core", spec.default)
+    core.geom.type = mujoco.mjtGeom.mjGEOM_SPHERE
+    core.geom.size = [0.01, 0, 0]
+    core.geom.contype = 0
+    core.geom.conaffinity = 0
+    core.geom.group = 4
 
-    # ================================ #
-    # Assets.
-    # ================================ #
-    root.asset.add("texture", type="skybox", builtin="gradient", height=512, width=512)
-    root.asset.add("texture", name="sticker", type="2d", file="sticker.png")
-    root.asset.add("material", name="sticker", texture="sticker")
+    # Assets: a gradient skybox and a single UV sticker atlas / material.
+    spec.add_texture(
+        type=mujoco.mjtTexture.mjTEXTURE_SKYBOX,
+        builtin=mujoco.mjtBuiltin.mjBUILTIN_GRADIENT,
+        width=512,
+        height=512,
+    )
+    spec.add_texture(name="sticker", type=mujoco.mjtTexture.mjTEXTURE_2D, file="sticker.png")
+    material = spec.add_material(name="sticker")
+    material.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = "sticker"
 
-    color2dir = {
-        "white": "pZ",
-        "yellow": "nZ",
-        "red": "pX",
-        "orange": "nX",
-        "blue": "pY",
-        "green": "nY",
-    }
-    dir2color = {v: k for k, v in color2dir.items()}
-
-    def add_cubelet_mesh(name: str, colors: Mapping[str, str]) -> str:
-        """Add a per-cubelet mesh whose sticker faces use ``colors`` (dir -> color)."""
-        vertex, texcoord, face = build_cubelet_mesh(colors)
-        root.asset.add(
-            "mesh", name=name, vertex=vertex, texcoord=texcoord, face=face
-        )
-        return name
-    # ================================ #
-
-    def dir2axis(d: str) -> Sequence[float]:
-        s = -1 if d[0] == "n" else 1
-        if d[1] == "X":
-            return (s, 0, 0)
-        elif d[1] == "Y":
-            return (0, s, 0)
-        elif d[1] == "Z":
-            return (0, 0, s)
-        else:
-            raise ValueError(f"Invalid direction: {d}")
-
-    def dir2pos(ds: str) -> Sequence[float]:
-        p = [0.0] * 3
-        for d in ds.split("_"):
-            p = [p[i] + cubelet_dimension * a for i, a in enumerate(dir2axis(d))]
-        return tuple(p)
-
-    # ================================ #
     # Worldbody.
-    # ================================ #
-    root.worldbody.add("light", pos=(0, 0, 1))
+    spec.worldbody.add_light(pos=[0, 0, 1], castshadow=False)
+    core_body = spec.worldbody.add_body(name="core", childclass="cubelet")
+    core_body.add_geom(core)
 
-    core = root.worldbody.add("body", name="core", childclass="cubelet")
-    core.add("geom", dclass="core")
+    for dirs in cubelets():
+        name = "_".join(dirs)
+        body = core_body.add_body(name=name)
+        colors: Mapping[str, str] = {d: DIR2COLOR[d] for d in dirs}
+        if len(dirs) == 1:  # Center: a single actuated hinge.
+            (d,) = dirs
+            body.add_joint(name=name, type=mujoco.mjtJoint.mjJNT_HINGE, axis=dir2axis(d))
+            spec.add_actuator(name=DIR2COLOR[d], trntype=mujoco.mjtTrn.mjTRN_JOINT, target=name)
+        else:  # Edge / corner: a free-spinning ball joint.
+            body.add_joint(name=name)
+        vert, texcoord, face = build_cubelet_mesh(colors)
+        spec.add_mesh(name=name, uservert=vert, usertexcoord=texcoord, userface=face)
+        body.add_geom(meshname=name, pos=dir2pos(dirs))
 
-    # Center cubelets: 6.
-    for d in axes:
-        body = core.add("body", name=d)
-        body.add("joint", name=d, type="hinge", axis=dir2axis(d))
-        if ADD_ACTUATORS:
-            root.actuator.add("motor", name=dir2color[d], joint=d)
-        mesh = add_cubelet_mesh(f"cubelet_{d}", {d: dir2color[d]})
-        body.add("geom", mesh=mesh, pos=dir2pos(d))
-
-    # Edge cubelets: 6C2 - 3 = 12.
-    for d1, d2 in list(itertools.combinations(axes, 2)):
-        if d1[1] == d2[1]:
-            continue
-        d = "_".join(sorted([d1, d2]))
-        body = core.add("body", name=d)
-        body.add("joint", name=d)
-        colors = {d1: dir2color[d1], d2: dir2color[d2]}
-        mesh = add_cubelet_mesh(f"cubelet_{d}", colors)
-        body.add("geom", mesh=mesh, pos=dir2pos(d))
-
-    # Corner cubelets: 4*2=8.
-    for d1, d2, d3 in list(itertools.combinations(axes, 3)):
-        if d1[1] == d2[1] or d1[1] == d3[1] or d2[1] == d3[1]:
-            continue
-        d = "_".join(sorted([d1, d2, d3]))
-        body = core.add("body", name=d)
-        body.add("joint", name=d)
-        colors = {d1: dir2color[d1], d2: dir2color[d2], d3: dir2color[d3]}
-        mesh = add_cubelet_mesh(f"cubelet_{d}", colors)
-        body.add("geom", mesh=mesh, pos=dir2pos(d))
-    # ================================ #
-
-    return root
-
-
-def prettify_xml_string(xml_string: str) -> str:
-    root = etree.XML(xml_string, etree.XMLParser(remove_blank_text=True))
-
-    compiler = root.find("compiler")
-    compiler.set("texturedir", "assets")
-
-    # Replace nasty filepaths.
-    pattern = r"^[a-zA-Z]+(_[a-zA-Z]+)*-\w+\.png"
-    textures = root.findall(".//texture")
-    for texture in textures:
-        for attr, file_name in texture.attrib.items():
-            match = re.match(pattern, file_name)
-            if match:
-                color = match.group(0).split("-")[0]
-                texture.set(attr, f"{color}.png")
-        # Remove autogenerated texture names.
-        if "name" in texture.attrib:
-            texture.attrib.pop("name")
-
-    # Remove autogenerated names.
-    for light in root.findall(".//light"):
-        light.attrib.pop("name")
-    for geom in root.findall(".//geom"):
-        if "name" in geom.attrib:
-            geom.attrib.pop("name")
-
-    # Remove "/" default class.
-    default_elem = root.find("default").find(".//*[@class='/']")
-    for child in default_elem.iterchildren():
-        default_elem.getparent().append(child)
-    default_elem.getparent().remove(default_elem)
-
-    # Reorder asset elements: textures first, then materials, then meshes.
-    asset = root.find("asset")
-    textures = asset.findall(".//texture")
-    materials = asset.findall(".//material")
-    meshes = asset.findall(".//mesh")
-    asset.clear()
-    for texture in textures:
-        asset.append(texture)
-    for material in materials:
-        asset.append(material)
-    for mesh in meshes:
-        asset.append(mesh)
-
-    # TODO(kevin): Figure out how to add line breaks between sections.
-
-    return etree.tostring(root, pretty_print=True).replace(b' class="/"', b"").decode()
+    return spec
 
 
 def main() -> None:
-    model = build()
-    xml_string = model.to_xml_string(precision=PRECISION, zero_threshold=ZERO_THRESHOLD)
-    pretty_xml_string = prettify_xml_string(xml_string)
-
-    with open(SAVE_DIR / XML_NAME, "w") as f:
-        f.write(pretty_xml_string)
-
+    spec = build()
+    spec.compile()  # Validate.
+    (SAVE_DIR / XML_NAME).write_text(spec.to_xml())
     viewer.launch_from_path(str(SAVE_DIR / XML_NAME))
 
 

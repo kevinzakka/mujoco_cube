@@ -1,11 +1,4 @@
-"""Generate per-cubelet meshes with UV coordinates into the sticker atlas.
-
-All cubelets share the same chamfered-cube geometry (the convex hull of
-``CUBELET_VERTICES``). What differs is the texture coordinates: each of the six
-square sticker faces is mapped either into its color swatch or into the black
-swatch, and every chamfer bevel is mapped into the black swatch. This lets the
-whole model use a single texture and a single material (see ``build_textures``).
-"""
+"""Generate per-cubelet meshes with UV coordinates into the sticker atlas."""
 
 from typing import Mapping, Sequence
 
@@ -64,15 +57,10 @@ def _classify(normal: np.ndarray, centroid: np.ndarray):
     return None
 
 
-def build_cubelet_mesh(dir2color: Mapping[str, str]) -> tuple[str, str, str]:
-    """Build a cubelet mesh whose sticker faces use the colors in ``dir2color``.
-
-    Returns flattened ``vertex``, ``texcoord`` and ``face`` strings ready for an
-    MJCF ``<mesh>`` element. Vertices are duplicated per triangle so each
-    triangle can carry its own UVs, so explicit faces must be provided too --
-    otherwise MuJoCo rebuilds the convex hull and merges the duplicates, which
-    scrambles the texture coordinates.
-    """
+def build_cubelet_mesh(
+    dir2color: Mapping[str, str],
+) -> tuple[list[float], list[float], list[int]]:
+    """Build a cubelet mesh whose sticker faces use the colors in ``dir2color``."""
     hull = trimesh.convex.convex_hull(CUBELET_VERTICES)
     # Map colored faces keyed by (axis, sign).
     face_color = {_DIR2AXIS[d]: c for d, c in dir2color.items()}
@@ -87,7 +75,7 @@ def build_cubelet_mesh(dir2color: Mapping[str, str]) -> tuple[str, str, str]:
         color = face_color.get(face, "black") if face is not None else "black"
         base = len(verts) // 3
         for vertex in tri:
-            verts.extend(vertex)
+            verts.extend(float(c) for c in vertex)
             if color == "black":
                 uvs.extend(_swatch_uv("black", 0.5, 0.5))
             else:
@@ -98,7 +86,4 @@ def build_cubelet_mesh(dir2color: Mapping[str, str]) -> tuple[str, str, str]:
                 uvs.extend(_swatch_uv(color, tu, tv))
         faces.extend((base, base + 1, base + 2))
 
-    vertex_str = " ".join(f"{v:.6g}" for v in verts)
-    texcoord_str = " ".join(f"{t:.6g}" for t in uvs)
-    face_str = " ".join(str(i) for i in faces)
-    return vertex_str, texcoord_str, face_str
+    return verts, uvs, faces

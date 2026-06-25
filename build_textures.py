@@ -1,11 +1,4 @@
-"""Generate a single UV sticker-atlas texture for the 3x3 cube.
-
-Instead of baking one cube-map texture per cubelet (the old approach), we emit a
-single horizontal atlas with one square swatch per sticker color, plus a black
-swatch for the chamfered bevels and any face without a sticker. The cubelet
-meshes carry UV coordinates that map each face into the right swatch, so the
-whole model needs only one texture and one material. See ``build_mjcf.py``.
-"""
+"""Generate a single UV sticker-atlas texture for the 3x3 cube."""
 
 import pathlib
 

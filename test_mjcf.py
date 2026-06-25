@@ -1,4 +1,4 @@
-from dm_control import mjcf
+import mujoco
 import numpy as np
 from absl.testing import absltest
 from pathlib import Path
@@ -11,24 +11,21 @@ class Cube3x3x3Test(absltest.TestCase):
 
     def test_can_compile_and_step(self) -> None:
         """Tests that we can compile the model and step the physics."""
-        model = mjcf.from_path(str(_XML_FILE))
-        physics = mjcf.Physics.from_mjcf_model(model)
-        physics.step()
+        model = mujoco.MjModel.from_xml_path(str(_XML_FILE))
+        data = mujoco.MjData(model)
+        mujoco.mj_step(model, data)
 
     def test_mass(self) -> None:
         """Tests that the total mass of the cube is what we expect."""
-        model = mjcf.from_path(str(_XML_FILE))
-        physics = mjcf.Physics.from_mjcf_model(model)
-        expected_mass = 0.0685
-        actual_mass = physics.bind(model.worldbody).subtreemass
-        np.testing.assert_almost_equal(actual_mass, expected_mass, decimal=6)
+        model = mujoco.MjModel.from_xml_path(str(_XML_FILE))
+        np.testing.assert_almost_equal(model.body_subtreemass[0], 0.0685, decimal=6)
 
     def test_freejoint(self) -> None:
         """Tests that adding a freejoint to the cube does not throw an error."""
-        model = mjcf.from_path(str(_XML_FILE))
-        model.worldbody.find("body", "core").add("freejoint")
-        physics = mjcf.Physics.from_mjcf_model(model)
-        physics.step()
+        spec = mujoco.MjSpec.from_file(str(_XML_FILE))
+        spec.body("core").add_freejoint()
+        model = spec.compile()
+        mujoco.mj_step(model, mujoco.MjData(model))
 
 
 if __name__ == "__main__":

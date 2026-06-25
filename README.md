@@ -5,7 +5,7 @@
 
 [tests-badge]: https://github.com/kevinzakka/mujoco_cube/actions/workflows/ci.yml/badge.svg
 [tests]: https://github.com/kevinzakka/mujoco_cube/actions/workflows/ci.yml
-[mujoco-version]: https://img.shields.io/badge/MuJoCo-v2.3.3-blue
+[mujoco-version]: https://img.shields.io/badge/MuJoCo-v3.1.0-blue
 
 [MuJoCo] model of a 3x3x3 puzzle cube, along with a script to procedurally generate it. Inspired by the [Rubik's Cube].
 
