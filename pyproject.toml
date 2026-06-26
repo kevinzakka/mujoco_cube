@@ -1,6 +1,6 @@
 [project]
 name = "mujoco-cube"
-version = "0.1.0"
+version = "1.1.0"
 description = "MuJoCo model of a 3x3x3 puzzle cube, with a script to procedurally generate it."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
